@@ -1,4 +1,4 @@
-# FinSight — Financial Document Intelligence
+# Financial-Analyst — Financial Document Intelligence
 
 A RAG-based AI assistant that answers questions about financial documents with cited sources.
 
