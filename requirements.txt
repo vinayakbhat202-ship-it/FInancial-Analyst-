@@ -1,0 +1,15 @@
+streamlit
+pymupdf
+sentence-transformers
+groq
+pandas
+plotly
+python-dotenv
+scikit-learn
+numpy
+langchain
+langchain-community
+langchain-text-splitters
+faiss-cpu
+chromadb
+pypdf
