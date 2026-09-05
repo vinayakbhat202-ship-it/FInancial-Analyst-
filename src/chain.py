@@ -24,7 +24,7 @@ Answer:"""
     client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
     
     message = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
+        
         max_tokens=1024,
         messages=[{"role": "user", "content": prompt}]
     )
