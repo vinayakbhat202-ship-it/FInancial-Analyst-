@@ -1,8 +1,9 @@
 import os
+import re
 from pathlib import Path
 from pypdf import PdfReader
 import chromadb
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, util
 
 DB_PATH = Path(__file__).parent.parent / "db"
 MODEL_NAME = "all-MiniLM-L6-v2"
@@ -10,15 +11,41 @@ MODEL_NAME = "all-MiniLM-L6-v2"
 client = chromadb.PersistentClient(path=str(DB_PATH))
 embedder = SentenceTransformer(MODEL_NAME)
 
-def chunk_text(text, chunk_size=500, overlap=50):
-    words = text.split()
+def chunk_text(text, similarity_threshold=0.55, max_chunk_words=500, min_chunk_words=40):
+    """Semantic chunking: split into sentences, embed each one, and only
+    start a new chunk when the topic actually shifts — instead of cutting
+    every fixed N words regardless of what's being talked about."""
+    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+    sentences = [s.strip() for s in sentences if s.strip()]
+
+    if len(sentences) <= 1:
+        return [text.strip()] if text.strip() else []
+
+    # Embed every sentence once, in a single batch
+    sentence_embeddings = embedder.encode(sentences, convert_to_tensor=True)
+
     chunks = []
-    start = 0
-    while start < len(words):
-        end = start + chunk_size
-        chunk = " ".join(words[start:end])
-        chunks.append(chunk)
-        start += chunk_size - overlap
+    current_sentences = [sentences[0]]
+    current_word_count = len(sentences[0].split())
+
+    for i in range(1, len(sentences)):
+        similarity = util.cos_sim(sentence_embeddings[i - 1], sentence_embeddings[i]).item()
+        sentence_word_count = len(sentences[i].split())
+
+        topic_changed = similarity < similarity_threshold
+        chunk_too_big = current_word_count + sentence_word_count > max_chunk_words
+
+        if chunk_too_big or (topic_changed and current_word_count >= min_chunk_words):
+            chunks.append(" ".join(current_sentences))
+            current_sentences = [sentences[i]]
+            current_word_count = sentence_word_count
+        else:
+            current_sentences.append(sentences[i])
+            current_word_count += sentence_word_count
+
+    if current_sentences:
+        chunks.append(" ".join(current_sentences))
+
     return chunks
 
 def ingest_pdf(pdf_path: str, collection_name: str):
@@ -62,5 +89,4 @@ if __name__ == "__main__":
     pdf_path = str(Path(__file__).parent.parent / "data" / "apple_10k.pdf")
     collection_name = "apple_10k"
     ingest_pdf(pdf_path, collection_name)
-
 
